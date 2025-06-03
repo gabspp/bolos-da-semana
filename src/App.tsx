@@ -531,8 +531,8 @@ function App() {
       )}
 
       <footer className="mt-12 text-center text-gray-500 text-sm">
-        <p>Os bolos são preparados com ingredientes frescos e de alta qualidade. A disponibilidade pode variar conforme a demanda.</p>
-        <p className="mt-2">Para mais informações ou encomendas especiais, entre em contato conosco.</p>
+        <p> Os bolos normalmente são finalizados no dia da entrega. Menos os de sábado, que são finalizados na sexta.</p>
+        <p className="mt-2">Sempre conferir no Notion!</p>
         <p className="mt-2 text-xs">Versão: {APP_VERSION}</p>
       </footer>
     </div>
