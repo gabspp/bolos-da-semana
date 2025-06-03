@@ -104,9 +104,6 @@ function App() {
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>('');
   const [atualizacaoAutomatica, setAtualizacaoAutomatica] = useState<boolean>(true);
   const [numeroSemana, setNumeroSemana] = useState<number>(0);
-  // const [datasSemanaAtual, setDatasSemanaAtual] = useState<string[]>([]); // Removido - não utilizado
-  // const [datasCompletasSemana, setDatasCompletasSemana] = useState<Date[]>([]); // Removido - não utilizado
-  // const [debugInfo, setDebugInfo] = useState<string[]>([]); // Removido - não utilizado
 
   // Função para calcular as datas da semana atual (SEMPRE EM UTC)
   const calcularDatasSemanaAtual = (): [string[], Date[]] => {
@@ -226,8 +223,6 @@ function App() {
     
     // Calcula as datas da semana atual
     const [datasAtual, datasCompletas] = calcularDatasSemanaAtual();
-    setDatasSemanaAtual(datasAtual);
-    setDatasCompletasSemana(datasCompletas);
     
     // Inicializa todos os dias da semana com as datas da semana atual
     diasSemana.forEach((dia, index) => {
@@ -251,7 +246,6 @@ function App() {
         
         // Converte a data ISO para um objeto Date, garantindo que seja UTC
         const dataPedido = new Date(dataPedidoISO.split("T")[0] + "T00:00:00Z");
-        // dataPedido.setHours(0, 0, 0, 0); // Não é mais necessário zerar horas com UTC
         
         // Obtém o dia da semana UTC (0 = domingo, 1 = segunda, ..., 6 = sábado)
         const diaSemanaNum = dataPedido.getUTCDay();
@@ -350,8 +344,8 @@ function App() {
       resultado[dia].somatorio = somarBolosPorTipo(resultado[dia].pedidos);
     });
     
-    // Atualiza as informações de depuração
-    setDebugInfo(logs);
+    // Se você quiser usar os logs para debug, descomente a linha abaixo:
+    // console.log('Debug logs:', logs);
     
     return resultado;
   }; // Fim do processarDados
@@ -535,8 +529,6 @@ function App() {
           ))}
         </div>
       )}
-
-
 
       <footer className="mt-12 text-center text-gray-500 text-sm">
         <p>Os bolos são preparados com ingredientes frescos e de alta qualidade. A disponibilidade pode variar conforme a demanda.</p>
