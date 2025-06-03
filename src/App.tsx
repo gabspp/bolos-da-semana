@@ -97,15 +97,6 @@ const formatarDataDDMM = (data: Date): string => {
   return `${dia}/${mes}`;
 };
 
-// Função para extrair dia e mês de uma data ISO
-const extrairDiaMes = (dataISO: string): { dia: number, mes: number } => {
-  const data = new Date(dataISO);
-  return {
-    dia: data.getDate(),
-    mes: data.getMonth() + 1
-  };
-};
-
 function App() {
   const [pedidosPorDia, setPedidosPorDia] = useState<PedidosPorDia>({});
   const [carregando, setCarregando] = useState<boolean>(true);
@@ -113,72 +104,71 @@ function App() {
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>('');
   const [atualizacaoAutomatica, setAtualizacaoAutomatica] = useState<boolean>(true);
   const [numeroSemana, setNumeroSemana] = useState<number>(0);
-  const [datasSemanaAtual, setDatasSemanaAtual] = useState<string[]>([]);
-  const [datasCompletasSemana, setDatasCompletasSemana] = useState<Date[]>([]);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  // const [datasSemanaAtual, setDatasSemanaAtual] = useState<string[]>([]); // Removido - não utilizado
+  // const [datasCompletasSemana, setDatasCompletasSemana] = useState<Date[]>([]); // Removido - não utilizado
+  // const [debugInfo, setDebugInfo] = useState<string[]>([]); // Removido - não utilizado
 
-  // Função para calcular as datas da semana atual
+  // Função para calcular as datas da semana atual (SEMPRE EM UTC)
   const calcularDatasSemanaAtual = (): [string[], Date[]] => {
-    const hoje = new Date();
-    const diaSemanaHoje = hoje.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
+    const hojeUTC = new Date(); // Data atual
+    const diaSemanaHojeUTC = hojeUTC.getUTCDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado (em UTC)
     
-    // Encontra a data da segunda-feira desta semana
-    const segundaFeira = new Date(hoje);
-    // Se hoje é domingo (0), recua 6 dias para a segunda-feira anterior
-    // Se hoje é outro dia, recua (diaSemanaHoje - 1) dias para a segunda-feira desta semana
-    segundaFeira.setDate(hoje.getDate() - (diaSemanaHoje === 0 ? 6 : diaSemanaHoje - 1));
+    // Calcula o timestamp da segunda-feira desta semana em UTC
+    // Se hoje é domingo (0), recua 6 dias. Senão, recua (diaSemanaHojeUTC - 1) dias.
+    const diffSegunda = diaSemanaHojeUTC === 0 ? -6 : -(diaSemanaHojeUTC - 1);
+    const segundaFeiraTimestamp = Date.UTC(hojeUTC.getUTCFullYear(), hojeUTC.getUTCMonth(), hojeUTC.getUTCDate() + diffSegunda);
     
-    // Gera as datas para cada dia da semana (segunda a sábado)
     const datasFormatadas: string[] = [];
     const datasCompletas: Date[] = [];
     
+    // Gera as datas para cada dia da semana (segunda a sábado) em UTC
     for (let i = 0; i < 6; i++) {
-      const data = new Date(segundaFeira);
-      data.setDate(segundaFeira.getDate() + i);
+      // Calcula o timestamp do dia atual do loop em UTC
+      const diaTimestamp = segundaFeiraTimestamp + i * 24 * 60 * 60 * 1000;
+      const data = new Date(diaTimestamp); // Cria objeto Date a partir do timestamp UTC
       
-      // Zera as horas para comparação precisa
-      data.setHours(0, 0, 0, 0);
+      // Salva a data completa (já está em UTC)
+      datasCompletas.push(data);
       
-      // Salva a data completa
-      datasCompletas.push(new Date(data));
-      
-      // Formata a data como DD/MM
+      // Formata a data como DD/MM usando métodos UTC
       datasFormatadas.push(formatarDataDDMM(data));
     }
     
     return [datasFormatadas, datasCompletas];
   };
 
-  // Função para calcular o número da semana
+  // Função para calcular o número da semana (SEMPRE EM UTC)
   const calcularNumeroSemana = (data: Date): number => {
-    // Cria uma cópia da data
-    const dataTemp = new Date(data);
+    // Cria uma cópia da data em UTC
+    const dataUTC = new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate()));
     
-    // Define para o primeiro dia do ano
-    const primeiroDiaAno = new Date(data.getFullYear(), 0, 1);
+    // Define para o primeiro dia do ano em UTC
+    const primeiroDiaAnoUTC = new Date(Date.UTC(dataUTC.getUTCFullYear(), 0, 1));
     
     // Calcula o número de dias desde o primeiro dia do ano
-    const diasDesdeInicio = Math.floor((dataTemp.getTime() - primeiroDiaAno.getTime()) / (24 * 60 * 60 * 1000));
+    const diasDesdeInicio = Math.floor((dataUTC.getTime() - primeiroDiaAnoUTC.getTime()) / (24 * 60 * 60 * 1000));
     
-    // Calcula o número da semana
-    return Math.ceil((diasDesdeInicio + primeiroDiaAno.getDay() + 1) / 7);
+    // Calcula o número da semana (ISO 8601 week date system logic might be more robust, but this is a common simple method)
+    // getUTCDay() retorna 0 para Domingo, 1 para Segunda... 6 para Sábado
+    // Adiciona o dia da semana do primeiro dia do ano (0-6) para alinhar com a semana
+    return Math.ceil((diasDesdeInicio + primeiroDiaAnoUTC.getUTCDay() + 1) / 7);
   };
 
-  // Função para verificar se uma data já passou
+  // Função para verificar se uma data (formato DD/MM) já passou (SEMPRE EM UTC)
   const verificarDataPassada = (dataStr: string): boolean => {
-    // Obtém a data atual
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zera as horas para comparar apenas as datas
+    // Obtém a data atual em UTC, zerando as horas
+    const hojeUTC = new Date();
+    hojeUTC.setUTCHours(0, 0, 0, 0);
     
-    // Converte a data do formato DD/MM para um objeto Date
-    const [dia, mes] = dataStr.split('/').map(Number);
+    // Converte a data do formato DD/MM para um objeto Date UTC
+    // Assume o mesmo ano da data atual (em UTC)
+    const [dia, mes] = dataStr.split("/").map(Number);
+    const anoAtualUTC = hojeUTC.getUTCFullYear();
+    const dataCompararTimestamp = Date.UTC(anoAtualUTC, mes - 1, dia);
+    const dataCompararUTC = new Date(dataCompararTimestamp);
     
-    // Assume o mesmo ano da data atual
-    const dataComparar = new Date(hoje.getFullYear(), mes - 1, dia);
-    dataComparar.setHours(0, 0, 0, 0); // Zera as horas para comparar apenas as datas
-    
-    // Retorna true se a data já passou
-    return dataComparar < hoje;
+    // Retorna true se a data já passou (comparando timestamps UTC)
+    return dataCompararUTC.getTime() < hojeUTC.getTime();
   };
 
   // Função para verificar se um pedido específico já passou (data anterior a hoje)
@@ -249,10 +239,8 @@ function App() {
       };
     });
     
-    // Calcula o número da semana com base na data atual
-    if (numeroSemana === 0) {
-      setNumeroSemana(calcularNumeroSemana(new Date()));
-    }
+    // Calcula e atualiza o número da semana com base na data atual (sempre que processar)
+    setNumeroSemana(calcularNumeroSemana(new Date()));
     
     // Processa cada pedido
     pedidos.forEach(pedido => {
