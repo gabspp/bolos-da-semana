@@ -350,36 +350,94 @@ function App() {
     return resultado;
   }; // Fim do processarDados
 
-  // Função para buscar os dados da API
+  // Função para tentar diferentes métodos de requisição
   const buscarPedidos = async () => {
     setCarregando(true);
     setErro(null);
     
-    try {
-      // Adiciona um parâmetro de versão para evitar cache
-      const resposta = await fetch(`https://n8n.gabrielpicanco.site/webhook-test/bolos-semana?v=${APP_VERSION}`);
-      
-      if (!resposta.ok) {
-        throw new Error(`Erro ao buscar dados: ${resposta.status}`);
+    const urlOriginal = `https://n8n.gabrielpicanco.site/webhook-test/bolos-semana?v=${APP_VERSION}`;
+    
+    // Lista de proxies CORS para tentar
+    const proxies = [
+      '', // Tentativa direta primeiro
+      'https://cors-anywhere.herokuapp.com/',
+      'https://api.allorigins.win/raw?url=',
+      'https://corsproxy.io/?'
+    ];
+    
+    for (let i = 0; i < proxies.length; i++) {
+      try {
+        const proxy = proxies[i];
+        const url = proxy ? `${proxy}${encodeURIComponent(urlOriginal)}` : urlOriginal;
+        
+        console.log(`Tentativa ${i + 1}: ${proxy ? 'Usando proxy' : 'Conexão direta'} - ${url}`);
+        
+        const resposta = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(proxy ? {} : {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type'
+            })
+          },
+          mode: proxy ? 'cors' : 'cors'
+        });
+        
+        console.log(`Resposta recebida: Status ${resposta.status}`);
+        
+        if (!resposta.ok) {
+          if (resposta.status === 404) {
+            throw new Error(`Webhook não encontrado (404). Verifique se a URL está correta: ${urlOriginal}`);
+          }
+          throw new Error(`Erro HTTP: ${resposta.status} - ${resposta.statusText}`);
+        }
+        
+        const dados = await resposta.json();
+        console.log('Dados recebidos com sucesso:', dados);
+        
+        // Processa os dados para organizar por dia da semana
+        const pedidosProcessados = processarDados(dados);
+        setPedidosPorDia(pedidosProcessados);
+        
+        // Atualiza a hora da última atualização
+        const agora = new Date();
+        setUltimaAtualizacao(
+          `${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR')}`
+        );
+        
+        console.log('Dados processados e estado atualizado com sucesso');
+        return; // Sucesso, sai da função
+        
+      } catch (error) {
+        console.error(`Erro na tentativa ${i + 1}:`, error);
+        
+        // Se é a última tentativa, define o erro
+        if (i === proxies.length - 1) {
+          let mensagemErro = 'Não foi possível carregar os pedidos.';
+          
+          if (error instanceof Error) {
+            if (error.message.includes('404')) {
+              mensagemErro = 'Webhook não encontrado. Verifique se a URL está correta e se o webhook está ativo no n8n.';
+            } else if (error.message.includes('CORS')) {
+              mensagemErro = 'Erro de CORS. O servidor precisa configurar os cabeçalhos adequados.';
+            } else if (error.message.includes('Failed to fetch')) {
+              mensagemErro = 'Falha na conexão. Verifique sua internet e se o servidor está funcionando.';
+            } else {
+              mensagemErro = `Erro: ${error.message}`;
+            }
+          }
+          
+          setErro(mensagemErro);
+        }
+        
+        // Continua para a próxima tentativa
+        continue;
       }
-      
-      const dados = await resposta.json();
-      
-      // Processa os dados para organizar por dia da semana
-      const pedidosProcessados = processarDados(dados);
-      setPedidosPorDia(pedidosProcessados);
-      
-      // Atualiza a hora da última atualização
-      const agora = new Date();
-      setUltimaAtualizacao(
-        `${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR')}`
-      );
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error);
-      setErro('Não foi possível carregar os pedidos. Por favor, tente novamente mais tarde.');
-    } finally {
-      setCarregando(false);
     }
+    
+    setCarregando(false);
   };
 
   // Busca os dados quando o componente é montado
@@ -453,13 +511,23 @@ function App() {
 
       {erro && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+          <p className="font-bold">Erro ao carregar dados:</p>
           <p>{erro}</p>
+          <div className="mt-2 text-sm">
+            <p>Possíveis soluções:</p>
+            <ul className="list-disc list-inside mt-1">
+              <li>Verifique se o webhook está ativo no n8n</li>
+              <li>Confirme se a URL está correta</li>
+              <li>Tente novamente em alguns minutos</li>
+            </ul>
+          </div>
         </div>
       )}
 
       {carregando ? (
         <div className="text-center py-12">
-          <p className="text-gray-600 text-lg">Carregando pedidos...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
+          <p className="text-gray-600 text-lg mt-4">Carregando pedidos...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
