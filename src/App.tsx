@@ -357,7 +357,7 @@ function App() {
     
     try {
       // Adiciona um parâmetro de versão para evitar cache
-      const resposta = await fetch(`https://n8n.gabrielpicanco.site/webhook/bolos-semana?v=${APP_VERSION}`);
+      const resposta = await fetch(`https://n8n.gabrielpicanco.site/webhook-test/bolos-semana?v=${APP_VERSION}`);
       
       if (!resposta.ok) {
         throw new Error(`Erro ao buscar dados: ${resposta.status}`);
