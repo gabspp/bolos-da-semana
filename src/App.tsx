@@ -355,7 +355,7 @@ function App() {
     setCarregando(true);
     setErro(null);
     
-    const urlOriginal = `https://n8n.gabrielpicanco.site/webhook-test/bolos-semana?v=${APP_VERSION}`;
+    const urlOriginal = `https://n8n.gabrielpicanco.site/webhook/bolos-semana?v=${APP_VERSION}`;
     
     // Lista de proxies CORS para tentar
     const proxies = [
