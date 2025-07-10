@@ -217,139 +217,89 @@ function App() {
   };
 
   // Função para processar os dados da API e organizá-los por dia da semana
-  const processarDados = (pedidos: Pedido[]): PedidosPorDia => {
-    const resultado: PedidosPorDia = {};
-    const logs: string[] = [];
-    
-    // Calcula as datas da semana atual
-    const [datasAtual, datasCompletas] = calcularDatasSemanaAtual();
-    
-    // Inicializa todos os dias da semana com as datas da semana atual
-    diasSemana.forEach((dia, index) => {
-      resultado[dia] = {
-        pedidos: [],
-        somatorio: [],
-        data: datasAtual[index],
-        passado: verificarDataPassada(datasAtual[index]) // Verifica se o dia já passou
-      };
-    });
-    
-    // Calcula e atualiza o número da semana com base na data atual (sempre que processar)
-    setNumeroSemana(calcularNumeroSemana(new Date()));
-    
-    // Processa cada pedido
-    pedidos.forEach(pedido => {
-      // Verifica se tem data de entrega e cliente
-      if (pedido.property_data_entrega && pedido.property_data_entrega.start && pedido.property_cliente) {
-        // Obtém a data do pedido
-        const dataPedidoISO = pedido.property_data_entrega.start;
-        
-        // Converte a data ISO para um objeto Date, garantindo que seja UTC
-        const dataPedido = new Date(dataPedidoISO.split("T")[0] + "T00:00:00Z");
-        
-        // Obtém o dia da semana UTC (0 = domingo, 1 = segunda, ..., 6 = sábado)
-        const diaSemanaNum = dataPedido.getUTCDay();
-        
-        // Domingo (0) não é exibido na aplicação, então ignoramos
-        if (diaSemanaNum === 0) {
-          logs.push(`Pedido: ${pedido.property_cliente}, Data: ${dataPedidoISO}, Ignorado: é domingo`);
-          return;
-        }
+// Função para processar os dados da API e organizá-los por dia da semana (VERSÃO CORRIGIDA)
+const processarDados = (pedidos: Pedido[]): PedidosPorDia => {
+  const resultado: PedidosPorDia = {};
 
-        logs.push(`Pedido: ${pedido.property_cliente}, Data ISO: ${dataPedidoISO}`);
-        logs.push(`  -> Data Pedido Obj: ${dataPedido.toISOString()} (UTC) | ${dataPedido.toString()} (Local)`);
-        logs.push(`  -> Dia Semana Num (getDay): ${diaSemanaNum}`);
-        
-        // Verifica se a data do pedido está na semana atual
-        let estaNaSemanaAtual = false;
-        let indiceDia = -1;
-        
-        logs.push(`  -> Comparando com datas da semana atual [${datasCompletas.map(d => d.toISOString().split("T")[0]).join(", ")}]:`);
-        // Compara a data do pedido com cada data da semana atual
-        for (let i = 0; i < datasCompletas.length; i++) {
-          const dataCompleta = datasCompletas[i];
-          logs.push(`    - Iteração ${i}: Comparando ${dataPedido.toISOString().split("T")[0]} com ${dataCompleta.toISOString().split("T")[0]}`);
-          
-          const match = 
-            dataPedido.getUTCFullYear() === dataCompleta.getUTCFullYear() &&
-            dataPedido.getUTCMonth() === dataCompleta.getUTCMonth() &&
-            dataPedido.getUTCDate() === dataCompleta.getUTCDate();
-            
-          logs.push(`      -> Anos UTC: ${dataPedido.getUTCFullYear()} vs ${dataCompleta.getUTCFullYear()} (${dataPedido.getUTCFullYear() === dataCompleta.getUTCFullYear()})`);
-          logs.push(`      -> Meses UTC: ${dataPedido.getUTCMonth()} vs ${dataCompleta.getUTCMonth()} (${dataPedido.getUTCMonth() === dataCompleta.getUTCMonth()})`);
-          logs.push(`      -> Dias UTC: ${dataPedido.getUTCDate()} vs ${dataCompleta.getUTCDate()} (${dataPedido.getUTCDate() === dataCompleta.getUTCDate()})`);
-          logs.push(`      -> Match: ${match}`);
+  // 1. CALCULAR OS LIMITES DA SEMANA ATUAL EM UTC
+  const [datasFormatadasDaSemana, datasCompletas] = calcularDatasSemanaAtual();
+  const inicioSemanaTimestamp = datasCompletas[0].getTime(); // Timestamp da segunda-feira 00:00:00 UTC
+  // Pega o último dia (sábado) e adiciona 23h, 59m, 59s para ter o fim do dia
+  const fimSemanaTimestamp = datasCompletas[5].getTime() + (24 * 60 * 60 * 1000 - 1); 
 
-          // Compara ano, mês e dia
-          if (match) {
-            estaNaSemanaAtual = true;
-            indiceDia = i;
-            logs.push(`      -> ENCONTRADO! Índice: ${indiceDia}`);
-            break;
-          }
-        }
-        
-        // Se não está na semana atual, ignora o pedido
-        if (!estaNaSemanaAtual) {
-          logs.push(`  -> Ignorado: data fora da semana atual`);
-          return;
-        }
-        
-        // Formata a data do pedido como DD/MM para exibição
-        const dataPedidoFormatada = formatarDataDDMM(dataPedido);
-        
-        // Obtém o dia da semana correspondente ao índice
-        const diaSemana = diasSemana[indiceDia];
-        logs.push(`  -> Dia da semana final atribuído: ${diaSemana} (índice ${indiceDia})`);
-        
-        // Lista de bolos pedidos
-        const bolosPedidos: {
-          tipo: string;
-          quantidade: number;
-          abreviacao: string;
-          cor: string;
-          tamanho: string;
-        }[] = [];
-        
-        // Verifica cada tipo de bolo no pedido
-        propriedadesBolos.forEach(prop => {
-          // Se o pedido tem esse tipo de bolo (valor > 0), adiciona à lista
-          if (pedido[prop] && pedido[prop] > 0) {
-            const infoBolo = nomesBolos[prop];
-            bolosPedidos.push({
-              tipo: infoBolo.tipoBase,
-              quantidade: pedido[prop] as number,
-              abreviacao: infoBolo.abreviacao,
-              cor: infoBolo.cor,
-              tamanho: infoBolo.tamanho
-            });
-          }
-        });
-        
-        // Adiciona o pedido processado ao dia correspondente
-        if (bolosPedidos.length > 0) {
-          resultado[diaSemana].pedidos.push({
-            cliente: pedido.property_cliente,
-            bolos: bolosPedidos,
-            dataOriginal: dataPedidoISO,
-            dataFormatada: dataPedidoFormatada
-          });
-          logs.push(`  - Adicionado ao dia: ${diaSemana} (${datasAtual[indiceDia]})`);
-        }
+  // 2. INICIALIZAR A ESTRUTURA DE DADOS
+  diasSemana.forEach((dia, index) => {
+    resultado[dia] = {
+      pedidos: [],
+      somatorio: [],
+      data: datasFormatadasDaSemana[index],
+      passado: verificarDataPassada(datasFormatadasDaSemana[index])
+    };
+  });
+
+  // Atualiza o número da semana
+  setNumeroSemana(calcularNumeroSemana(new Date()));
+
+  // 3. PROCESSAR CADA PEDIDO
+  pedidos.forEach(pedido => {
+    // Validação básica do pedido
+    if (!pedido.property_data_entrega?.start || !pedido.property_cliente) {
+      return;
+    }
+
+    // Normaliza a data do pedido para meia-noite UTC para uma comparação justa
+    const dataPedidoISO = pedido.property_data_entrega.start;
+    const dataPedido = new Date(dataPedidoISO.split("T")[0] + "T00:00:00.000Z");
+    const pedidoTimestamp = dataPedido.getTime();
+
+    // 4. VERIFICAR SE O PEDIDO PERTENCE À SEMANA ATUAL
+    if (pedidoTimestamp >= inicioSemanaTimestamp && pedidoTimestamp <= fimSemanaTimestamp) {
+      // O pedido está na semana atual, agora vamos encontrar o dia correto.
+      const diaSemanaNum = dataPedido.getUTCDay(); // 0: Dom, 1: Seg, ..., 6: Sab
+
+      // Ignora Domingos
+      if (diaSemanaNum === 0) {
+        return;
       }
-    }); // Fim do pedidos.forEach
-    
-    // Calcula o somatório de bolos para cada dia
-    Object.keys(resultado).forEach(dia => {
-      resultado[dia].somatorio = somarBolosPorTipo(resultado[dia].pedidos);
-    });
-    
-    // Se você quiser usar os logs para debug, descomente a linha abaixo:
-    // console.log('Debug logs:', logs);
-    
-    return resultado;
-  }; // Fim do processarDados
 
+      // O índice no nosso array `diasSemana` é `diaSemanaNum - 1`
+      const diaSemanaChave = diasSemana[diaSemanaNum - 1];
+      if (!diaSemanaChave) return; // Segurança extra
+
+      // Monta a lista de bolos do pedido
+      const bolosPedidos: { tipo: string; quantidade: number; abreviacao: string; cor: string; tamanho: string; }[] = [];
+      propriedadesBolos.forEach(prop => {
+        if (pedido[prop] && pedido[prop] > 0) {
+          const infoBolo = nomesBolos[prop];
+          bolosPedidos.push({
+            tipo: infoBolo.tipoBase,
+            quantidade: pedido[prop] as number,
+            abreviacao: infoBolo.abreviacao,
+            cor: infoBolo.cor,
+            tamanho: infoBolo.tamanho
+          });
+        }
+      });
+
+      // Adiciona o pedido processado ao dia correspondente se tiver bolos
+      if (bolosPedidos.length > 0) {
+        resultado[diaSemanaChave].pedidos.push({
+          cliente: pedido.property_cliente,
+          bolos: bolosPedidos,
+          dataOriginal: dataPedidoISO,
+          dataFormatada: formatarDataDDMM(dataPedido)
+        });
+      }
+    }
+  });
+
+  // 5. CALCULAR O SOMATÓRIO PARA CADA DIA
+  Object.keys(resultado).forEach(dia => {
+    resultado[dia].somatorio = somarBolosPorTipo(resultado[dia].pedidos);
+  });
+
+  return resultado;
+};
   // Função para tentar diferentes métodos de requisição
   const buscarPedidos = async () => {
     setCarregando(true);
